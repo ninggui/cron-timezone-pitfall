@@ -41,7 +41,7 @@ hermes cron edit <JOB_ID> --model <model> --provider <provider>
 多个 cron job 在同一分钟触发（如 10:00 的 morning-brief + 10:00 的 xhs-comment）会撞 TokenRhythm 网关并发限制，报 `HTTP 504 Gateway Time-out`。单个 job 手动触发也偶发 504 → 网关本身间歇性抖动。
 **修复：错峰调度**——把次要 job 移到半点（`30 */2 * * *` 而非 `0 */2 * * *`），大 job 之间至少错开 30 分钟。
 **2026-08-12 完整错峰案例**：ev-industry-watch 08:00→`30 */8 * * *`（08:30/16:30/00:30），system-health-watch 12:00→`15 */6 * * *`（00:15/06:15/12:15/18:15）。整点只剩必须每分钟/每10分钟的轻量任务（群消息、xhs-monitor），大任务全部错开。同时给失败任务 prompt 加"遇 504 等待 60 秒重试一次"，实现自愈。
-**诊断顺序**：① `curl -o /dev/null -w "%{http_code}" https://tokenrhythm.studio/v1/models -H "Authorization: Bearer $(cat /path/to/data/backup_api_key.txt)"` 测网关健康 → ② CLI 直连 `hermes chat -q "OK" --provider tokenrhythm` 测主会话 → ③ 看 errors.log 中 cron 会话的 provider/base_url → ④ 确认 fallback 链生效（`hermes fallback list`）。
+**诊断顺序**：① `curl -o /dev/null -w "%{http_code}" https://tokenrhythm.studio/v1/models -H "Authorization: Bearer $(cat /home/user/backup_api_key.txt)"` 测网关健康 → ② CLI 直连 `hermes chat -q "OK" --provider tokenrhythm` 测主会话 → ③ 看 errors.log 中 cron 会话的 provider/base_url → ④ 确认 fallback 链生效（`hermes fallback list`）。
 
 ## 相邻陷阱：504 未必是配置问题（2026-08-12 实测）
 12:07-12:13 三个不同 job（xhs-monitor-v3、system-health-watch、群消息回复）**同时**报 504——非整点、非并发碰撞、纯网关间歇抖动。判定依据：①错误文本就是 `HTTP 504 Gateway Time-out` 无其他上下文 ②同批其他 job 正常 ③下个周期自动重跑成功。**处置：无需修复，等待下周期自愈**；不要因单次 504 就改配置或删 job。区分：若 504 反复出现在同一 job 且伴随其他错误（401/模型漂移），才需要查配置。
@@ -53,7 +53,7 @@ hermes cron edit <JOB_ID> --model <model> --provider <provider>
 ## 只读监控 cron 模板（QQ邮箱/告警类）
 用户要求"有新内容才通知、绝不回复/绝不写"的监控任务，用此模板（deliver=origin，enabled_toolsets=["terminal"]）：
 1. 读取最新条目（`himalaya envelope list --page-size 5`）
-2. 对比已见文件（如 /path/to/data/cache/qq_mail_seen.txt 存已处理 ID）
+2. 对比已见文件（如 /home/user/cache/qq_mail_seen.txt 存已处理 ID）
 3. 有新内容→列出标题/发件人/时间，更新 seen 文件
 4. 无新内容→回复 `[SILENT]` 抑制推送
 关键：**只在 SKILL 层写"只读、绝不回复"约束到 prompt**，防止 cron agent 自作主张回复。
