@@ -1,5 +1,8 @@
 <div align="center">
 
+
+![cover](assets/cover.png)
+
 # cron-timezone-pitfall
 
 **Cron 显示 UTC 时间，你的任务比预期晚了 8 小时——一行 TZ 环境变量修好。**
